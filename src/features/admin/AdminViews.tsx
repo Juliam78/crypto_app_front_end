@@ -58,13 +58,15 @@ export function UsersAdminView({
 }) {
   const [message, setMessage] = useState<string | null>(null)
   const canPromote = currentUser.email === originalAdminEmail
+  const roleLabel = (role: Role) =>
+    role === 'admin' ? 'Administrador' : role === 'employee' ? 'Empleado' : 'Usuario'
 
   return (
     <section className="overflow-hidden rounded-xl border border-white/80 bg-white/95 shadow-sm backdrop-blur">
       <div className="border-b border-slate-200 bg-white px-4 py-4">
         <h2 className="text-lg font-black">Usuarios</h2>
         <p className="text-sm text-slate-500">
-          {canPromote ? 'Puedes designar usuarios como administradores.' : 'Solo el administrador original puede cambiar roles.'}
+          {canPromote ? 'Puedes asignar el rol de cada usuario (usuario, empleado o administrador).' : 'Solo el administrador original puede cambiar roles.'}
         </p>
       </div>
       {message && <p className="m-4 rounded-lg bg-sky-50 px-3 py-2 text-sm font-semibold text-sky-800">{message}</p>}
@@ -88,19 +90,23 @@ export function UsersAdminView({
                   </div>
                 </td>
                 <td className="px-4 py-3">{item.email}</td>
-                <td className="px-4 py-3">{item.role === 'admin' ? 'Administrador' : 'Usuario'}</td>
+                <td className="px-4 py-3">{roleLabel(item.role)}</td>
                 <td className="px-4 py-3">
-                  <button
-                    className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold shadow-sm hover:border-sky-300 hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  <select
+                    className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold shadow-sm hover:border-sky-300 disabled:cursor-not-allowed disabled:opacity-50"
+                    value={item.role}
                     disabled={!canPromote || item.email === originalAdminEmail}
-                    onClick={async () => {
-                      const nextRole = item.role === 'admin' ? 'user' : 'admin'
+                    onChange={async (event) => {
+                      const nextRole = event.target.value as Role
+                      if (nextRole === item.role) return
                       const ok = await onRoleChange(item.id, nextRole)
                       setMessage(ok ? 'Rol actualizado correctamente' : 'No fue posible cambiar el rol')
                     }}
                   >
-                    {item.role === 'admin' ? 'Quitar admin' : 'Hacer admin'}
-                  </button>
+                    <option value="user">Usuario</option>
+                    <option value="employee">Empleado</option>
+                    <option value="admin">Administrador</option>
+                  </select>
                 </td>
               </tr>
             ))}
