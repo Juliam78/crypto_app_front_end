@@ -1,6 +1,6 @@
-// Cliente HTTP central contra el API Gateway de los microservicios.
-// El gateway expone una única URL base y enruta a cada servicio.
-const API_URL = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') ?? 'http://localhost:8080'
+// Cliente HTTP central contra el backend hexagonal .NET (CryptoApp.Web).
+// La URL base se configura con VITE_API_URL (.env).
+const API_URL = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') ?? 'http://localhost:5243'
 
 export class ApiError extends Error {
   status: number
