@@ -336,14 +336,14 @@ function App() {
           <NavButton to="/perfil" label="Perfil" />
           {user.role === 'admin' && (
             <>
-              <NavButton to="/admin" label="Compras y ventas" />
+              <NavButton to="/admin" end label="Compras y ventas" />
               <NavButton to="/admin/errores" label="Errores" />
               <NavButton to="/admin/usuarios" label="Usuarios" />
             </>
           )}
           <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
             <p className="font-bold text-slate-800">Estado del mercado</p>
-            <p className="mt-1">Backend: microservicios</p>
+            <p className="mt-1">Backend: .NET (hexagonal)</p>
             <p>{lastSync ? `Ultima sync: ${formatHour(lastSync)}` : 'Esperando datos'}</p>
             <p>{isDetail ? 'Detalle actualiza cada 3 segundos.' : 'Mercado actualiza cada 20 segundos.'}</p>
           </div>
