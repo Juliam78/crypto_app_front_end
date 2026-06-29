@@ -68,6 +68,13 @@ export type Lesson = {
   updatedAt: string
 }
 
+export type AssistantSource = 'llm' | 'fallback'
+
+export type AssistantReply = {
+  answer: string
+  source: AssistantSource
+}
+
 export type AppErrorLog = {
   id: string
   route: string

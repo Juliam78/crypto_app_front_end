@@ -7,7 +7,7 @@ import { loginSchema, profileSchema, registerSchema, tradeSchema, type LoginForm
 import type { Toast, TradeResult } from './types'
 import { RequireAdmin } from './RequireAdmin'
 import { RequireStaff } from './RequireStaff'
-import { AcademyManageView, AcademyView, DetailSkeleton, DetailView, ErrorsView, HistoryView, LoginScreen, MarketView, NavButton, ProfileView, ToastMessage, UsersAdminView, Avatar } from '../features'
+import { AcademyManageView, AcademyView, AssistantWidget, DetailSkeleton, DetailView, ErrorsView, HistoryView, LoginScreen, MarketView, NavButton, ProfileView, ToastMessage, UsersAdminView, Avatar } from '../features'
 import { fetchCoin, fetchTopCoins } from '../services/coingecko'
 import { createTradeMovement, getAppErrors, getMovements, getUsers, loginWithProfile, logAppError, logout, registerUser, restoreSession, saveCoinPricesAsAdmin, setUserRole, updateUserProfile, uploadAvatar } from '../services/storage'
 import { createLesson, deleteLesson, getLessons, publishLesson, unpublishLesson, updateLesson, type CreateLessonInput, type UpdateLessonInput } from '../services/academy'
@@ -504,6 +504,8 @@ function App() {
           </Routes>
         </main>
       </div>
+
+      <AssistantWidget />
     </div>
   )
 }
