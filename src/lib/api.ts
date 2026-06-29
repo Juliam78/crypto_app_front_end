@@ -1,3 +1,5 @@
+import { getToken } from './session'
+
 // Cliente HTTP central contra el backend hexagonal .NET (CryptoApp.Web).
 // La URL base se configura con VITE_API_URL (.env).
 const API_URL = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') ?? 'http://localhost:5243'
@@ -14,10 +16,12 @@ type JsonInit = Omit<RequestInit, 'body'> & { body?: unknown }
 
 export async function apiFetch<T>(path: string, init: JsonInit = {}): Promise<T> {
   const { body, headers, ...rest } = init
+  const token = getToken()
   const response = await fetch(`${API_URL}${path}`, {
     ...rest,
     headers: {
       'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(headers ?? {}),
     },
     body: body === undefined ? undefined : JSON.stringify(body),

@@ -22,7 +22,8 @@ export function calculateRealizedPnl(movements: Movement[]) {
       return
     }
 
-    const soldQuantity = Math.min(movement.quantity, current.quantity || movement.quantity)
+    // Solo se realiza PnL sobre la cantidad efectivamente en posición; sin posición previa, 0.
+    const soldQuantity = Math.min(movement.quantity, current.quantity)
     const realizedPnl = (movement.price - current.averageCost) * soldQuantity
     pnlByMovement.set(movement.id, realizedPnl)
     positions.set(key, {
