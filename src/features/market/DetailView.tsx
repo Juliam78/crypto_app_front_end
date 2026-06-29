@@ -86,10 +86,13 @@ export function DetailView({
         >
           <h3 className="text-lg font-black">Comprar o vender</h3>
           <div className="mt-3 grid gap-6 md:grid-cols-[180px_minmax(260px,420px)_auto] md:items-start md:justify-center">
-            <select className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 outline-none focus:border-sky-500 focus:ring-4 focus:ring-sky-100" {...register('type')}>
-              <option value="buy">Comprar</option>
-              <option value="sell">Vender</option>
-            </select>
+            <div>
+              <label className="mb-1 block text-center text-xs font-black uppercase text-slate-500">Accion</label>
+              <select className="min-h-11 w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 outline-none focus:border-sky-500 focus:ring-4 focus:ring-sky-100" {...register('type')}>
+                <option value="buy">Comprar</option>
+                <option value="sell">Vender</option>
+              </select>
+            </div>
             <div>
               <label className="mb-1 block text-center text-xs font-black uppercase text-slate-500">Monto en USD</label>
               <div className="grid grid-cols-[auto_1fr_auto] overflow-hidden rounded-lg border border-slate-300 bg-slate-50 focus-within:border-sky-500 focus-within:ring-4 focus-within:ring-sky-100">
@@ -125,9 +128,12 @@ export function DetailView({
                 </button>
               )}
             </div>
-            <button className="rounded-lg bg-emerald-700 px-5 py-2.5 font-bold text-white shadow-lg shadow-emerald-900/10 hover:bg-emerald-800 disabled:opacity-60" disabled={isSubmitting || (selectedType === 'sell' && (balance <= 0 || isSellingTooMuch))}>
-              Registrar
-            </button>
+            <div>
+              <label aria-hidden="true" className="mb-1 block select-none text-center text-xs font-black uppercase text-slate-500 opacity-0">Accion</label>
+              <button className="min-h-11 w-full rounded-lg bg-emerald-700 px-5 py-2.5 font-bold text-white shadow-lg shadow-emerald-900/10 hover:bg-emerald-800 disabled:opacity-60" disabled={isSubmitting || (selectedType === 'sell' && (balance <= 0 || isSellingTooMuch))}>
+                Registrar
+              </button>
+            </div>
           </div>
           {errors.amountUsd && <p className="mt-2 text-center text-sm text-red-600">{errors.amountUsd.message}</p>}
           {isSellingTooMuch && !errors.amountUsd && <p className="mt-2 text-center text-sm font-semibold text-red-600">Solo tienes {formatMoney(maxSellUsd, currency)} disponible para vender.</p>}
