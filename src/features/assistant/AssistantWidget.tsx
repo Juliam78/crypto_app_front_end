@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { askAssistant } from '../../services/assistant'
+import { subscribeAssistant } from '../../lib/assistantBus'
 import type { AssistantSource } from '../../shared/types'
 
 type ChatMessage = {
@@ -46,34 +47,52 @@ export function AssistantWidget() {
     if (open) inputRef.current?.focus()
   }, [open])
 
-  async function handleSend() {
-    const question = input.trim()
-    if (!question || sending) return
+  // Envia una pregunta al asistente. Usa el valor de `input` si no se pasa una explicita
+  // (caso del bus: pregunta precargada desde Academia).
+  const sendQuestion = useCallback(
+    async (rawQuestion?: string) => {
+      const question = (rawQuestion ?? input).trim()
+      if (!question || sending) return
 
-    const userMessage: ChatMessage = { id: crypto.randomUUID(), role: 'user', text: question }
-    setMessages((current) => [...current, userMessage])
-    setInput('')
-    setSending(true)
+      const userMessage: ChatMessage = { id: crypto.randomUUID(), role: 'user', text: question }
+      setMessages((current) => [...current, userMessage])
+      setInput('')
+      setSending(true)
 
-    try {
-      const reply = await askAssistant(question, coinId)
-      setMessages((current) => [
-        ...current,
-        { id: crypto.randomUUID(), role: 'assistant', text: reply.answer, source: reply.source },
-      ])
-    } catch {
-      setMessages((current) => [
-        ...current,
-        {
-          id: crypto.randomUUID(),
-          role: 'assistant',
-          text: 'Ups, no pude responder en este momento. Intentalo de nuevo en unos segundos.',
-          error: true,
-        },
-      ])
-    } finally {
-      setSending(false)
-    }
+      try {
+        const reply = await askAssistant(question, coinId)
+        setMessages((current) => [
+          ...current,
+          { id: crypto.randomUUID(), role: 'assistant', text: reply.answer, source: reply.source },
+        ])
+      } catch {
+        setMessages((current) => [
+          ...current,
+          {
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            text: 'Ups, no pude responder en este momento. Intentalo de nuevo en unos segundos.',
+            error: true,
+          },
+        ])
+      } finally {
+        setSending(false)
+      }
+    },
+    [coinId, input, sending],
+  )
+
+  // Suscripcion al bus: al recibir una peticion desde Academia, abre el panel y envia
+  // automaticamente la pregunta precargada.
+  useEffect(() => {
+    return subscribeAssistant((question) => {
+      setOpen(true)
+      void sendQuestion(question)
+    })
+  }, [sendQuestion])
+
+  function handleSend() {
+    void sendQuestion()
   }
 
   function handleKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
