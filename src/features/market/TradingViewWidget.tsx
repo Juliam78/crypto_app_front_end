@@ -8,12 +8,16 @@ export function TradingViewWidget({ symbol }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (!containerRef.current) return
+    // Capturamos el nodo en una variable local: el cleanup no debe leer el ref
+    // (puede ser null tras desmontar) y así evitamos que el script async de
+    // TradingView haga querySelector sobre un parentNode ya removido del DOM.
+    const container = containerRef.current
+    if (!container) return
 
-    containerRef.current.innerHTML = ''
+    container.innerHTML = ''
     const widget = document.createElement('div')
     widget.className = 'tradingview-widget-container__widget'
-    containerRef.current.appendChild(widget)
+    container.appendChild(widget)
 
     const script = document.createElement('script')
     script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js'
@@ -32,7 +36,13 @@ export function TradingViewWidget({ symbol }: Props) {
       support_host: 'https://www.tradingview.com',
     })
 
-    containerRef.current.appendChild(script)
+    container.appendChild(script)
+
+    return () => {
+      // Vacía el contenedor al desmontar o antes de re-ejecutar (cambio de symbol
+      // o doble montaje de StrictMode), retirando el script antes de que falle.
+      container.innerHTML = ''
+    }
   }, [symbol])
 
   return (
