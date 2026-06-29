@@ -20,7 +20,12 @@ Ofrecer la experiencia de usuario completa de la simulación de trading:
   cantidad estimada.
 - **Historial** — movimientos del usuario con cálculo de PnL realizado.
 - **Perfil** — edición de datos y carga de avatar.
-- **Administración** — gestión de usuarios/roles y consulta de errores registrados.
+- **Administración** — gestión de usuarios/roles (`admin`/`employee`/`user`) y consulta de errores.
+- **Academia** — lecciones y señales de compra/venta; vista interactiva para el usuario
+  (pestañas, búsqueda/filtro por moneda, tarjetas expandibles, "Aplicar señal" y "Preguntarle a
+  Cripto") y vista de gestión para el personal (`admin`/`employee`).
+- **Mascota IA "Cripto"** — widget de chat flotante que responde preguntas y sugiere
+  comprar/vender consultando el back-end.
 
 La SPA es **delgada**: delega la lógica pesada (caché de precios, tokens, persistencia) al
 back-end y se centra en presentación, validación en cliente y estado de la interfaz.
@@ -45,24 +50,30 @@ crypto_app_front_end/
 ├── src/
 │   ├── app/
 │   │   └── App.tsx              # Composición de rutas y estado global
+│   ├── app/                    # App.tsx, RequireAdmin, RequireStaff (guards de ruta)
 │   ├── features/               # Organización por dominio
 │   │   ├── auth/               # LoginScreen
 │   │   ├── market/             # MarketView, DetailView, TradingViewWidget
 │   │   ├── history/            # HistoryView
 │   │   ├── profile/            # ProfileView
-│   │   └── admin/              # ErrorsView, UsersAdminView
+│   │   ├── admin/              # ErrorsView, UsersAdminView
+│   │   ├── academy/            # AcademyView (usuario, interactiva) y AcademyManageView (staff)
+│   │   └── assistant/          # AssistantWidget (mascota IA flotante)
 │   ├── lib/                    # Lógica pura y utilidades
-│   │   ├── api.ts              # Cliente HTTP centralizado (fetch + manejo de errores)
+│   │   ├── api.ts              # Cliente HTTP centralizado (fetch + token Bearer + errores)
 │   │   ├── session.ts          # Sesión en localStorage (token Bearer)
 │   │   ├── portfolio.ts        # Cálculo de costo promedio y PnL realizado
 │   │   ├── trade.ts            # Construcción de cotizaciones de trade
 │   │   ├── format.ts           # Formato de dinero/fechas (Intl)
-│   │   └── validation.ts       # Esquemas Zod
+│   │   ├── validation.ts       # Esquemas Zod
+│   │   └── assistantBus.ts     # Bus desacoplado para abrir la mascota desde otras vistas
 │   ├── services/               # Capa de servicios (abstracción de la API)
 │   │   ├── storage.ts          # Auth, usuarios, movimientos, errores
-│   │   └── coingecko.ts        # Datos de mercado
+│   │   ├── coingecko.ts        # Datos de mercado
+│   │   ├── academy.ts          # Lecciones/señales (lectura y gestión)
+│   │   └── assistant.ts        # Preguntas a la mascota IA
 │   ├── components/shared/      # NavLink/NavButton, Toast, Avatar, Skeleton, Metric
-│   ├── shared/types.ts         # Interfaces TS compartidas (AppUser, Coin, Movement)
+│   ├── shared/types.ts         # Interfaces TS compartidas (AppUser, Coin, Movement, Lesson, ...)
 │   ├── main.tsx                # Punto de entrada
 │   └── index.css               # Tailwind + estilos globales
 ├── .env                        # VITE_API_URL
@@ -77,8 +88,11 @@ crypto_app_front_end/
 
 - **Organización por *features*** — cada dominio (auth, market, history, profile, admin) agrupa
   sus vistas; `lib/` contiene lógica pura y `services/` la comunicación con la API.
-- **Enrutamiento con React Router** — navegación declarativa por rutas, con protección de las
-  vistas de administración según el rol del usuario.
+- **Enrutamiento con React Router** — navegación declarativa por rutas, con guards por rol:
+  `RequireAdmin` (solo `admin`) para usuarios/errores, y `RequireStaff` (`admin` o `employee`)
+  para la gestión de la Academia.
+- **Mascota IA integrada** — el `AssistantWidget` se monta global; otras vistas (p. ej. la
+  Academia) lo abren con una pregunta pre-cargada mediante un bus desacoplado (`assistantBus`).
 - **Cliente HTTP centralizado** (`lib/api.ts`) — todas las peticiones pasan por `apiFetch`, que
   serializa JSON, adjunta el token y normaliza errores (`ApiError` con código de estado).
 - **Consumo de API con `async/await` + `try/catch`** — manejo de errores explícito en los
