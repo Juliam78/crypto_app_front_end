@@ -109,7 +109,7 @@ cd crypto_app_front_end
 npm install
 
 # 3. Configurar la URL del back-end en .env
-#    VITE_API_URL=http://localhost:5000
+#    VITE_API_URL=http://localhost:5243
 
 # 4. Levantar el servidor de desarrollo
 npm run dev        # http://localhost:5173
