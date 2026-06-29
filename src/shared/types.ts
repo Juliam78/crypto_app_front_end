@@ -1,6 +1,6 @@
 export type Currency = 'usd'
 
-export type Role = 'admin' | 'user'
+export type Role = 'admin' | 'employee' | 'user'
 
 export type AppUser = {
   id: string
@@ -47,6 +47,25 @@ export type Movement = {
   price: number
   total: number
   created_at: string
+}
+
+export type LessonKind = 'lesson' | 'signal'
+
+export type Recommendation = 'buy' | 'sell' | 'hold'
+
+export type Lesson = {
+  id: string
+  kind: LessonKind
+  title: string
+  body: string
+  coinId: string | null
+  coinSymbol: string | null
+  recommendation: Recommendation | null
+  authorId: string
+  authorName: string
+  published: boolean
+  createdAt: string
+  updatedAt: string
 }
 
 export type AppErrorLog = {

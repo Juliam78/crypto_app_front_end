@@ -6,10 +6,13 @@ import { buildTradeQuote } from '../lib/trade'
 import { loginSchema, profileSchema, registerSchema, tradeSchema, type LoginForm, type ProfileForm, type RegisterForm, type TradeForm } from '../lib/validation'
 import type { Toast, TradeResult } from './types'
 import { RequireAdmin } from './RequireAdmin'
-import { DetailSkeleton, DetailView, ErrorsView, HistoryView, LoginScreen, MarketView, NavButton, ProfileView, ToastMessage, UsersAdminView, Avatar } from '../features'
+import { RequireStaff } from './RequireStaff'
+import { AcademyManageView, AcademyView, DetailSkeleton, DetailView, ErrorsView, HistoryView, LoginScreen, MarketView, NavButton, ProfileView, ToastMessage, UsersAdminView, Avatar } from '../features'
 import { fetchCoin, fetchTopCoins } from '../services/coingecko'
 import { createTradeMovement, getAppErrors, getMovements, getUsers, loginWithProfile, logAppError, logout, registerUser, restoreSession, saveCoinPricesAsAdmin, setUserRole, updateUserProfile, uploadAvatar } from '../services/storage'
-import type { AppErrorLog, AppUser, Coin, Currency, Movement, Role } from '../shared/types'
+import { createLesson, deleteLesson, getLessons, publishLesson, unpublishLesson, updateLesson, type CreateLessonInput, type UpdateLessonInput } from '../services/academy'
+import { ApiError } from '../lib/api'
+import type { AppErrorLog, AppUser, Coin, Currency, Lesson, Movement, Role } from '../shared/types'
 
 // Extrae el coinId de una ruta de detalle (/coin/:coinId), o null si no estamos en detalle.
 function getDetailCoinId(pathname: string): string | null {
@@ -28,6 +31,7 @@ function App() {
   const [movements, setMovements] = useState<Movement[]>([])
   const [appErrors, setAppErrors] = useState<AppErrorLog[]>([])
   const [users, setUsers] = useState<AppUser[]>([])
+  const [lessons, setLessons] = useState<Lesson[]>([])
   const [loading, setLoading] = useState(false)
   const [syncError, setSyncError] = useState<string | null>(null)
   const [lastSync, setLastSync] = useState<string | null>(null)
@@ -82,6 +86,16 @@ function App() {
     }
   }, [user])
 
+  // El id devuelto por el POST de creacion no es fiable; siempre recargamos la lista completa.
+  const reloadLessons = useCallback(async () => {
+    try {
+      const rows = await getLessons()
+      setLessons(rows)
+    } catch (error) {
+      await trackError('/academia', error)
+    }
+  }, [trackError])
+
   useEffect(() => {
     if (!user) return
 
@@ -97,6 +111,26 @@ function App() {
       active = false
     }
   }, [user])
+
+  useEffect(() => {
+    if (!user) return
+
+    let active = true
+
+    async function loadLessons() {
+      try {
+        const rows = await getLessons()
+        if (active) setLessons(rows)
+      } catch (error) {
+        await trackError('/academia', error)
+      }
+    }
+
+    loadLessons()
+    return () => {
+      active = false
+    }
+  }, [user, trackError])
 
   useEffect(() => {
     if (!user || user.role !== 'admin') return
@@ -178,6 +212,40 @@ function App() {
   async function reloadMovements(currentUser = user) {
     const rows = await getMovements(currentUser)
     setMovements(rows)
+  }
+
+  async function runLessonMutation(mutation: () => Promise<unknown>, route: string): Promise<boolean> {
+    try {
+      await mutation()
+      await reloadLessons()
+      return true
+    } catch (error) {
+      await trackError(route, error)
+      if (error instanceof ApiError && error.status === 403) {
+        showToast('No tienes permisos para esta accion', 'error')
+      }
+      return false
+    }
+  }
+
+  function handleCreateLesson(input: CreateLessonInput) {
+    return runLessonMutation(() => createLesson(input), '/staff/academia/crear')
+  }
+
+  function handleUpdateLesson(id: string, input: UpdateLessonInput) {
+    return runLessonMutation(() => updateLesson(id, input), '/staff/academia/editar')
+  }
+
+  function handlePublishLesson(id: string) {
+    return runLessonMutation(() => publishLesson(id), '/staff/academia/publicar')
+  }
+
+  function handleUnpublishLesson(id: string) {
+    return runLessonMutation(() => unpublishLesson(id), '/staff/academia/despublicar')
+  }
+
+  function handleDeleteLesson(id: string) {
+    return runLessonMutation(() => deleteLesson(id), '/staff/academia/borrar')
   }
 
   async function handleLogin(values: LoginForm) {
@@ -333,7 +401,11 @@ function App() {
         <aside className="h-fit rounded-xl border border-white/80 bg-white/90 p-2 shadow-sm backdrop-blur">
           <NavButton to="/" end label="Mercado" />
           <NavButton to="/historial" label="Historial" />
+          <NavButton to="/academia" label="Academia" />
           <NavButton to="/perfil" label="Perfil" />
+          {(user.role === 'admin' || user.role === 'employee') && (
+            <NavButton to="/staff/academia" label="Gestion Academia" />
+          )}
           {user.role === 'admin' && (
             <>
               <NavButton to="/admin" end label="Compras y ventas" />
@@ -387,6 +459,22 @@ function App() {
             <Route
               path="/perfil"
               element={<ProfileView user={user} onSave={handleProfileUpdate} />}
+            />
+            <Route path="/academia" element={<AcademyView lessons={lessons} />} />
+            <Route
+              path="/staff/academia"
+              element={
+                <RequireStaff user={user}>
+                  <AcademyManageView
+                    lessons={lessons}
+                    onCreate={handleCreateLesson}
+                    onUpdate={handleUpdateLesson}
+                    onPublish={handlePublishLesson}
+                    onUnpublish={handleUnpublishLesson}
+                    onDelete={handleDeleteLesson}
+                  />
+                </RequireStaff>
+              }
             />
             <Route
               path="/admin"
