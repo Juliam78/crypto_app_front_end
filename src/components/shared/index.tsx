@@ -1,16 +1,20 @@
+import { NavLink } from 'react-router-dom'
 import type { Toast } from '../../app/types'
 import type { AppUser } from '../../shared/types'
 
-export function NavButton({ active, onClick, label }: { active: boolean; onClick: () => void; label: string }) {
+export function NavButton({ to, label, end }: { to: string; label: string; end?: boolean }) {
   return (
-    <button
-      className={`mb-1 w-full rounded-lg px-3 py-2.5 text-left text-sm font-bold transition ${
-        active ? 'bg-slate-950 text-white shadow-md' : 'text-slate-700 hover:bg-sky-50 hover:text-sky-800'
-      }`}
-      onClick={onClick}
+    <NavLink
+      to={to}
+      end={end}
+      className={({ isActive }) =>
+        `mb-1 block w-full rounded-lg px-3 py-2.5 text-left text-sm font-bold transition ${
+          isActive ? 'bg-slate-950 text-white shadow-md' : 'text-slate-700 hover:bg-sky-50 hover:text-sky-800'
+        }`
+      }
     >
       {label}
-    </button>
+    </NavLink>
   )
 }
 

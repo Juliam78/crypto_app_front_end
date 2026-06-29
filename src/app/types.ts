@@ -1,5 +1,3 @@
-export type View = 'market' | 'detail' | 'history' | 'admin' | 'profile' | 'errors' | 'users'
-
 export type Toast = {
   id: string
   tone: 'success' | 'error'

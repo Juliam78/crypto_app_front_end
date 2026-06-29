@@ -1,15 +1,26 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { formatMoney, formatHour } from '../lib/format'
 import { getAverageCost } from '../lib/portfolio'
 import { buildTradeQuote } from '../lib/trade'
 import { loginSchema, profileSchema, registerSchema, tradeSchema, type LoginForm, type ProfileForm, type RegisterForm, type TradeForm } from '../lib/validation'
-import type { Toast, TradeResult, View } from './types'
+import type { Toast, TradeResult } from './types'
+import { RequireAdmin } from './RequireAdmin'
 import { DetailSkeleton, DetailView, ErrorsView, HistoryView, LoginScreen, MarketView, NavButton, ProfileView, ToastMessage, UsersAdminView, Avatar } from '../features'
 import { fetchCoin, fetchTopCoins } from '../services/coingecko'
 import { createTradeMovement, getAppErrors, getMovements, getUsers, loginWithProfile, logAppError, logout, registerUser, restoreSession, saveCoinPricesAsAdmin, setUserRole, updateUserProfile, uploadAvatar } from '../services/storage'
 import type { AppErrorLog, AppUser, Coin, Currency, Movement, Role } from '../shared/types'
 
+// Extrae el coinId de una ruta de detalle (/coin/:coinId), o null si no estamos en detalle.
+function getDetailCoinId(pathname: string): string | null {
+  const match = pathname.match(/^\/coin\/([^/]+)$/)
+  return match ? decodeURIComponent(match[1]) : null
+}
+
 function App() {
+  const navigate = useNavigate()
+  const location = useLocation()
+
   const [user, setUser] = useState<AppUser | null>(null)
   const [authReady, setAuthReady] = useState(false)
   const currency: Currency = 'usd'
@@ -17,14 +28,14 @@ function App() {
   const [movements, setMovements] = useState<Movement[]>([])
   const [appErrors, setAppErrors] = useState<AppErrorLog[]>([])
   const [users, setUsers] = useState<AppUser[]>([])
-  const [selectedCoinId, setSelectedCoinId] = useState<string | null>(null)
-  const [view, setView] = useState<View>('market')
   const [loading, setLoading] = useState(false)
   const [syncError, setSyncError] = useState<string | null>(null)
   const [lastSync, setLastSync] = useState<string | null>(null)
   const [toast, setToast] = useState<Toast | null>(null)
 
-  const selectedCoin = coins.find((coin) => coin.id === selectedCoinId) ?? coins[0]
+  // El detalle activo se deriva de la ruta en lugar de un estado dedicado.
+  const detailCoinId = getDetailCoinId(location.pathname)
+  const isDetail = detailCoinId !== null
 
   useEffect(() => {
     if (!toast) return
@@ -37,10 +48,7 @@ function App() {
     let active = true
     restoreSession().then((restored) => {
       if (!active) return
-      if (restored) {
-        setUser(restored)
-        setView(restored.role === 'admin' ? 'admin' : 'market')
-      }
+      if (restored) setUser(restored)
       setAuthReady(true)
     })
     return () => {
@@ -51,7 +59,7 @@ function App() {
   function handleLogout() {
     logout()
     setUser(null)
-    setView('market')
+    navigate('/')
   }
 
   function showToast(message: string, tone: Toast['tone'] = 'success') {
@@ -112,13 +120,13 @@ function App() {
     if (!user) return
 
     let active = true
-    const refreshMs = view === 'detail' ? 3000 : 20000
+    const refreshMs = isDetail ? 3000 : 20000
 
     async function loadCoins() {
       setLoading(true)
       try {
-        if (view === 'detail' && selectedCoinId) {
-          const coin = await fetchCoin(currency, selectedCoinId)
+        if (isDetail && detailCoinId) {
+          const coin = await fetchCoin(currency, detailCoinId)
           if (!active || !coin) return
           setCoins((currentCoins) =>
             currentCoins.some((currentCoin) => currentCoin.id === coin.id)
@@ -134,14 +142,13 @@ function App() {
         const data = await fetchTopCoins(currency)
         if (!active) return
         setCoins(data)
-        setSelectedCoinId((current) => current ?? data[0]?.id ?? null)
         setLastSync(new Date().toISOString())
         setSyncError(null)
         await saveCoinPricesAsAdmin(data, currency, user)
       } catch (error) {
         if (!active) return
         setSyncError(error instanceof Error ? error.message : 'No fue posible conectar con CoinGecko')
-        await trackError(view === 'detail' ? `/detalle/${selectedCoinId}/${currency}` : `/mercado/${currency}`, error)
+        await trackError(isDetail ? `/detalle/${detailCoinId}/${currency}` : `/mercado/${currency}`, error)
       } finally {
         if (active) setLoading(false)
       }
@@ -154,7 +161,7 @@ function App() {
       active = false
       window.clearInterval(timer)
     }
-  }, [currency, user, view, selectedCoinId, trackError])
+  }, [currency, user, isDetail, detailCoinId, trackError])
 
   const portfolio = useMemo(() => {
     const balances = new Map<string, number>()
@@ -182,8 +189,8 @@ function App() {
       return null
     }
     setUser(profile)
-    setView(profile.role === 'admin' ? 'admin' : 'market')
     await reloadMovements(profile)
+    navigate(profile.role === 'admin' ? '/admin' : '/')
     return profile
   }
 
@@ -196,8 +203,8 @@ function App() {
       return null
     }
     setUser(profile)
-    setView('market')
     await reloadMovements(profile)
+    navigate('/')
     return profile
   }
 
@@ -218,18 +225,18 @@ function App() {
     return profile
   }
 
-  async function handleTrade(values: TradeForm): Promise<TradeResult> {
+  async function handleTrade(coin: Coin, values: TradeForm): Promise<TradeResult> {
     const parsed = tradeSchema.safeParse(values)
-    if (!parsed.success || !user || !selectedCoin) {
+    if (!parsed.success || !user) {
       return { ok: false, message: 'Operacion invalida', tone: 'error' }
     }
-    const balance = portfolio.get(selectedCoin.id) ?? 0
+    const balance = portfolio.get(coin.id) ?? 0
 
-    const averageCost = getAverageCost(movements, user.id, selectedCoin.id, currency)
+    const averageCost = getAverageCost(movements, user.id, coin.id, currency)
     const quote = buildTradeQuote({
       amountUsd: parsed.data.amountUsd,
       averageCost,
-      coin: selectedCoin,
+      coin,
       type: parsed.data.type,
     })
 
@@ -238,10 +245,10 @@ function App() {
     }
 
     if (parsed.data.type === 'sell' && quote.quantity > balance) {
-      await trackError(`/detalle/${selectedCoin.id}/operacion`, new Error('Intento de venta superior al balance disponible'))
+      await trackError(`/detalle/${coin.id}/operacion`, new Error('Intento de venta superior al balance disponible'))
       return {
         ok: false,
-        message: `Solo tienes ${formatMoney(balance * selectedCoin.current_price, currency)} disponible para vender`,
+        message: `Solo tienes ${formatMoney(balance * coin.current_price, currency)} disponible para vender`,
         tone: 'error',
       }
     }
@@ -249,19 +256,19 @@ function App() {
     try {
       await createTradeMovement({
         user,
-        coin: selectedCoin,
+        coin,
         type: parsed.data.type,
         amountUsd: quote.total,
       })
     } catch (error) {
-      await trackError(`/detalle/${selectedCoin.id}/operacion`, error)
+      await trackError(`/detalle/${coin.id}/operacion`, error)
       return { ok: false, message: 'No fue posible registrar el movimiento', tone: 'error' }
     }
 
     await reloadMovements(user)
     const message =
       parsed.data.type === 'buy'
-        ? `Compra registrada. Gastaste ${formatMoney(quote.total, currency)} en ${selectedCoin.symbol.toUpperCase()}.`
+        ? `Compra registrada. Gastaste ${formatMoney(quote.total, currency)} en ${coin.symbol.toUpperCase()}.`
         : `Venta registrada. Resultado de la transaccion: ${quote.realizedPnl >= 0 ? '+' : ''}${formatMoney(quote.realizedPnl, currency)}.`
     showToast(message, quote.realizedPnl < 0 ? 'error' : 'success')
     return { ok: true, message, tone: quote.realizedPnl < 0 ? 'error' : 'success' }
@@ -307,7 +314,7 @@ function App() {
             </span>
             <button
               className="flex items-center gap-2 rounded-full bg-slate-950 px-2 py-1.5 pr-3 text-sm font-bold text-white shadow-sm"
-              onClick={() => setView('profile')}
+              onClick={() => navigate('/perfil')}
             >
               <Avatar user={user} size="sm" />
               {user.name}
@@ -324,77 +331,122 @@ function App() {
 
       <div className="mx-auto grid max-w-7xl gap-5 px-4 py-5 lg:grid-cols-[250px_1fr]">
         <aside className="h-fit rounded-xl border border-white/80 bg-white/90 p-2 shadow-sm backdrop-blur">
-          <NavButton active={view === 'market'} onClick={() => setView('market')} label="Mercado" />
-          <NavButton active={view === 'history'} onClick={() => setView('history')} label="Historial" />
-          <NavButton active={view === 'profile'} onClick={() => setView('profile')} label="Perfil" />
+          <NavButton to="/" end label="Mercado" />
+          <NavButton to="/historial" label="Historial" />
+          <NavButton to="/perfil" label="Perfil" />
           {user.role === 'admin' && (
             <>
-              <NavButton active={view === 'admin'} onClick={() => setView('admin')} label="Compras y ventas" />
-              <NavButton active={view === 'errors'} onClick={() => setView('errors')} label="Errores" />
-              <NavButton active={view === 'users'} onClick={() => setView('users')} label="Usuarios" />
+              <NavButton to="/admin" label="Compras y ventas" />
+              <NavButton to="/admin/errores" label="Errores" />
+              <NavButton to="/admin/usuarios" label="Usuarios" />
             </>
           )}
           <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
             <p className="font-bold text-slate-800">Estado del mercado</p>
             <p className="mt-1">Backend: microservicios</p>
             <p>{lastSync ? `Ultima sync: ${formatHour(lastSync)}` : 'Esperando datos'}</p>
-            <p>{view === 'detail' ? 'Detalle actualiza cada 3 segundos.' : 'Mercado actualiza cada 20 segundos.'}</p>
+            <p>{isDetail ? 'Detalle actualiza cada 3 segundos.' : 'Mercado actualiza cada 20 segundos.'}</p>
           </div>
         </aside>
 
         <main className="space-y-4">
-          {syncError && user.role === 'admin' && view === 'errors' && (
+          {syncError && user.role === 'admin' && location.pathname === '/admin/errores' && (
             <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900 shadow-sm">
               CoinGecko fallo despues de reintentos incrementales: {syncError}
             </div>
           )}
 
-          {view === 'market' && (
-            <MarketView
-              coins={coins}
-              currency={currency}
-              loading={loading && coins.length === 0}
-              onSelect={(coin) => {
-                setSelectedCoinId(coin.id)
-                setView('detail')
-              }}
+          <Routes>
+            <Route
+              path="/"
+              element={
+                <MarketView
+                  coins={coins}
+                  currency={currency}
+                  loading={loading && coins.length === 0}
+                  onSelect={(coin) => navigate(`/coin/${encodeURIComponent(coin.id)}`)}
+                />
+              }
             />
-          )}
-
-          {view === 'detail' && selectedCoin && (
-            <DetailView
-              coin={selectedCoin}
-              currency={currency}
-              balance={portfolio.get(selectedCoin.id) ?? 0}
-              canTrade={user.role === 'user'}
-              onTrade={handleTrade}
+            <Route
+              path="/coin/:coinId"
+              element={
+                <CoinDetailRoute
+                  coins={coins}
+                  currency={currency}
+                  portfolio={portfolio}
+                  canTrade={user.role === 'user'}
+                  onTrade={handleTrade}
+                />
+              }
             />
-          )}
-
-          {view === 'detail' && !selectedCoin && <DetailSkeleton />}
-
-          {view === 'history' && (
-            <HistoryView movements={movements} currency={currency} title="Historial de movimientos" />
-          )}
-
-          {view === 'admin' && user.role === 'admin' && (
-            <HistoryView movements={movements} currency={currency} title="Compras y ventas de usuarios" showUser />
-          )}
-
-          {view === 'profile' && <ProfileView user={user} onSave={handleProfileUpdate} />}
-
-          {view === 'errors' && user.role === 'admin' && <ErrorsView errors={appErrors} />}
-
-          {view === 'users' && user.role === 'admin' && (
-            <UsersAdminView
-              currentUser={user}
-              onRoleChange={handleRoleChange}
-              users={users}
+            <Route
+              path="/historial"
+              element={<HistoryView movements={movements} currency={currency} title="Historial de movimientos" />}
             />
-          )}
+            <Route
+              path="/perfil"
+              element={<ProfileView user={user} onSave={handleProfileUpdate} />}
+            />
+            <Route
+              path="/admin"
+              element={
+                <RequireAdmin user={user}>
+                  <HistoryView movements={movements} currency={currency} title="Compras y ventas de usuarios" showUser />
+                </RequireAdmin>
+              }
+            />
+            <Route
+              path="/admin/errores"
+              element={
+                <RequireAdmin user={user}>
+                  <ErrorsView errors={appErrors} />
+                </RequireAdmin>
+              }
+            />
+            <Route
+              path="/admin/usuarios"
+              element={
+                <RequireAdmin user={user}>
+                  <UsersAdminView currentUser={user} onRoleChange={handleRoleChange} users={users} />
+                </RequireAdmin>
+              }
+            />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
         </main>
       </div>
     </div>
+  )
+}
+
+// Resuelve la moneda del parámetro de ruta y renderiza el detalle (o skeleton mientras carga).
+function CoinDetailRoute({
+  coins,
+  currency,
+  portfolio,
+  canTrade,
+  onTrade,
+}: {
+  coins: Coin[]
+  currency: Currency
+  portfolio: Map<string, number>
+  canTrade: boolean
+  onTrade: (coin: Coin, values: TradeForm) => Promise<TradeResult>
+}) {
+  const { coinId } = useParams<{ coinId: string }>()
+  const coin = coins.find((item) => item.id === coinId)
+
+  if (!coin) return <DetailSkeleton />
+
+  return (
+    <DetailView
+      coin={coin}
+      currency={currency}
+      balance={portfolio.get(coin.id) ?? 0}
+      canTrade={canTrade}
+      onTrade={(values) => onTrade(coin, values)}
+    />
   )
 }
 
