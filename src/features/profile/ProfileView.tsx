@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { Avatar } from '../../components/shared'
 import { profileSchema, type ProfileForm } from '../../lib/validation'
@@ -13,6 +13,19 @@ export function ProfileView({
 }) {
   const [message, setMessage] = useState<string | null>(null)
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
+  const [preview, setPreview] = useState<string | null>(null)
+
+  // Vista previa local de la imagen elegida (no se sube a BD hasta pulsar Guardar).
+  useEffect(() => {
+    if (!avatarFile) {
+      setPreview(null)
+      return
+    }
+    const url = URL.createObjectURL(avatarFile)
+    setPreview(url)
+    return () => URL.revokeObjectURL(url)
+  }, [avatarFile])
+
   const {
     register,
     handleSubmit,
@@ -34,11 +47,22 @@ export function ProfileView({
           const parsed = profileSchema.safeParse(values)
           if (!parsed.success) return
           const updated = await onSave(parsed.data, avatarFile)
+          if (updated) {
+            setAvatarFile(null) // limpia el preview; el Avatar mostrará ya la imagen guardada
+          }
           setMessage(updated ? 'Perfil actualizado correctamente' : 'No fue posible guardar el perfil')
         })}
       >
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-          <Avatar user={user} size="lg" />
+          {preview ? (
+            <img
+              alt="Vista previa del avatar"
+              className="h-24 w-24 rounded-full object-cover ring-2 ring-sky-300"
+              src={preview}
+            />
+          ) : (
+            <Avatar user={user} size="lg" />
+          )}
           <label className="block text-sm font-semibold">
             Avatar
             <input
@@ -47,6 +71,18 @@ export function ProfileView({
               onChange={(event) => setAvatarFile(event.target.files?.[0] ?? null)}
               type="file"
             />
+            {preview && (
+              <span className="mt-1 flex items-center gap-2 text-xs font-normal text-amber-700">
+                Vista previa · aún sin guardar
+                <button
+                  className="font-bold text-sky-700 underline hover:text-sky-900"
+                  onClick={() => setAvatarFile(null)}
+                  type="button"
+                >
+                  Cancelar
+                </button>
+              </span>
+            )}
           </label>
         </div>
         <div className="grid gap-3 md:grid-cols-2">
