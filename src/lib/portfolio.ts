@@ -1,4 +1,18 @@
-import type { Currency, Movement } from '../shared/types'
+import type { Coin, Currency, Movement } from '../shared/types'
+
+// Saldo virtual inicial en USD con el que arranca cada usuario.
+export const STARTING_CASH_USD = 10000
+
+// Tenencia agregada por moneda, calculada en el cliente a partir de los movimientos.
+export type Holding = {
+  coinId: string
+  coinSymbol: string
+  coinName: string
+  quantity: number
+  price: number
+  valueUsd: number
+  realizedPnl: number
+}
 
 export function calculateRealizedPnl(movements: Movement[]) {
   const pnlByMovement = new Map<string, number>()
@@ -33,6 +47,60 @@ export function calculateRealizedPnl(movements: Movement[]) {
   })
 
   return pnlByMovement
+}
+
+// Efectivo USD disponible: parte del saldo inicial, resta compras y suma ventas (solo en USD).
+export function getCashBalance(movements: Movement[]): number {
+  return movements.reduce((cash, movement) => {
+    if (movement.currency !== 'usd') return cash
+    return movement.type === 'buy' ? cash - movement.total : cash + movement.total
+  }, STARTING_CASH_USD)
+}
+
+// Saldo por moneda: cantidad neta, precio actual, valor en USD y PnL realizado acumulado.
+export function getHoldings(movements: Movement[], coins: Coin[]): Holding[] {
+  const pnlByMovement = calculateRealizedPnl(movements)
+
+  type Accumulator = {
+    coinSymbol: string
+    coinName: string
+    quantity: number
+    realizedPnl: number
+  }
+
+  const byCoin = new Map<string, Accumulator>()
+
+  movements.forEach((movement) => {
+    const current = byCoin.get(movement.coin_id) ?? {
+      coinSymbol: movement.coin_symbol,
+      coinName: movement.coin_name,
+      quantity: 0,
+      realizedPnl: 0,
+    }
+    current.coinSymbol = movement.coin_symbol
+    current.coinName = movement.coin_name
+    current.quantity += movement.type === 'buy' ? movement.quantity : -movement.quantity
+    current.realizedPnl += pnlByMovement.get(movement.id) ?? 0
+    byCoin.set(movement.coin_id, current)
+  })
+
+  const holdings: Holding[] = []
+  byCoin.forEach((accumulator, coinId) => {
+    const quantity = Math.max(0, accumulator.quantity)
+    if (quantity <= 0) return
+    const price = coins.find((coin) => coin.id === coinId)?.current_price ?? 0
+    holdings.push({
+      coinId,
+      coinSymbol: accumulator.coinSymbol,
+      coinName: accumulator.coinName,
+      quantity,
+      price,
+      valueUsd: quantity * price,
+      realizedPnl: accumulator.realizedPnl,
+    })
+  })
+
+  return holdings
 }
 
 export function getAverageCost(movements: Movement[], userId: string, coinId: string, currency: Currency) {

@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { formatMoney, formatHour } from '../lib/format'
-import { getAverageCost } from '../lib/portfolio'
+import { getAverageCost, getCashBalance } from '../lib/portfolio'
 import { buildTradeQuote } from '../lib/trade'
 import { loginSchema, profileSchema, registerSchema, tradeSchema, type LoginForm, type ProfileForm, type RegisterForm, type TradeForm } from '../lib/validation'
 import type { Toast, TradeResult } from './types'
 import { RequireAdmin } from './RequireAdmin'
 import { RequireStaff } from './RequireStaff'
-import { AcademyManageView, AcademyView, AssistantWidget, DetailSkeleton, DetailView, ErrorsView, HistoryView, LoginScreen, MarketView, NavButton, ProfileView, ToastMessage, UsersAdminView, Avatar } from '../features'
+import { AcademyManageView, AcademyView, AssistantWidget, DetailSkeleton, DetailView, ErrorsView, HistoryView, LoginScreen, MarketView, NavButton, ProfileView, ToastMessage, UsersAdminView, WalletView, Avatar } from '../features'
 import { fetchCoin, fetchTopCoins } from '../services/coingecko'
 import { createTradeMovement, getAppErrors, getMovements, getUsers, loginWithProfile, logAppError, logout, registerUser, restoreSession, saveCoinPricesAsAdmin, setUserRole, updateUserProfile, uploadAvatar } from '../services/storage'
 import { createLesson, deleteLesson, getLessons, publishLesson, unpublishLesson, updateLesson, type CreateLessonInput, type UpdateLessonInput } from '../services/academy'
@@ -209,6 +209,9 @@ function App() {
     return balances
   }, [movements])
 
+  // Efectivo USD disponible derivado de los movimientos (saldo inicial - compras + ventas).
+  const availableCashUsd = useMemo(() => getCashBalance(movements), [movements])
+
   async function reloadMovements(currentUser = user) {
     const rows = await getMovements(currentUser)
     setMovements(rows)
@@ -321,6 +324,15 @@ function App() {
       }
     }
 
+    if (parsed.data.type === 'buy' && quote.total > availableCashUsd) {
+      await trackError(`/detalle/${coin.id}/operacion`, new Error('Intento de compra superior al efectivo disponible'))
+      return {
+        ok: false,
+        message: `Solo tienes ${formatMoney(availableCashUsd, currency)} disponible para comprar`,
+        tone: 'error',
+      }
+    }
+
     try {
       await createTradeMovement({
         user,
@@ -400,6 +412,7 @@ function App() {
       <div className="mx-auto grid max-w-7xl gap-5 px-4 py-5 lg:grid-cols-[250px_1fr]">
         <aside className="h-fit rounded-xl border border-white/80 bg-white/90 p-2 shadow-sm backdrop-blur">
           <NavButton to="/" end label="Mercado" />
+          <NavButton to="/cartera" label="Mi cartera" />
           <NavButton to="/historial" label="Historial" />
           <NavButton to="/academia" label="Academia" />
           <NavButton to="/perfil" label="Perfil" />
@@ -447,10 +460,15 @@ function App() {
                   coins={coins}
                   currency={currency}
                   portfolio={portfolio}
+                  availableCashUsd={availableCashUsd}
                   canTrade={user.role === 'user'}
                   onTrade={handleTrade}
                 />
               }
+            />
+            <Route
+              path="/cartera"
+              element={<WalletView movements={movements} coins={coins} currency={currency} />}
             />
             <Route
               path="/historial"
@@ -515,12 +533,14 @@ function CoinDetailRoute({
   coins,
   currency,
   portfolio,
+  availableCashUsd,
   canTrade,
   onTrade,
 }: {
   coins: Coin[]
   currency: Currency
   portfolio: Map<string, number>
+  availableCashUsd: number
   canTrade: boolean
   onTrade: (coin: Coin, values: TradeForm) => Promise<TradeResult>
 }) {
@@ -534,6 +554,7 @@ function CoinDetailRoute({
       coin={coin}
       currency={currency}
       balance={portfolio.get(coin.id) ?? 0}
+      availableCashUsd={availableCashUsd}
       canTrade={canTrade}
       onTrade={(values) => onTrade(coin, values)}
     />

@@ -11,12 +11,14 @@ export function DetailView({
   coin,
   currency,
   balance,
+  availableCashUsd,
   canTrade,
   onTrade,
 }: {
   coin: Coin
   currency: Currency
   balance: number
+  availableCashUsd: number
   canTrade: boolean
   onTrade: (values: TradeForm) => Promise<TradeResult>
 }) {
@@ -45,6 +47,8 @@ export function DetailView({
       : 0
   const isSellingTooMuch =
     selectedType === 'sell' && Number.isFinite(amountUsdNumber) && amountUsdNumber > maxSellUsd
+  const isBuyingTooMuch =
+    selectedType === 'buy' && Number.isFinite(amountUsdNumber) && amountUsdNumber > availableCashUsd
   const trendClass = coin.price_change_percentage_24h >= 0 ? 'text-emerald-700' : 'text-red-600'
 
   return (
@@ -80,6 +84,7 @@ export function DetailView({
             const parsed = tradeSchema.safeParse(values)
             if (!parsed.success) return
             if (parsed.data.type === 'sell' && parsed.data.amountUsd > maxSellUsd) return
+            if (parsed.data.type === 'buy' && parsed.data.amountUsd > availableCashUsd) return
             const result = await onTrade(parsed.data)
             if (result.ok) reset({ type: 'buy', amountUsd: 100 })
           })}
@@ -111,6 +116,9 @@ export function DetailView({
                       if (selectedType === 'sell' && value > maxSellUsd) {
                         return `Solo tienes ${formatMoney(maxSellUsd, currency)} disponible para vender`
                       }
+                      if (selectedType === 'buy' && value > availableCashUsd) {
+                        return `Solo tienes ${formatMoney(availableCashUsd, currency)} disponible para comprar`
+                      }
                       return true
                     },
                   })}
@@ -127,10 +135,15 @@ export function DetailView({
                   Usar maximo disponible: {formatMoney(maxSellUsd, currency)}
                 </button>
               )}
+              {selectedType === 'buy' && (
+                <button className="mt-2 block w-full text-center text-xs font-black text-sky-700 hover:text-sky-900" onClick={() => setValue('amountUsd', Number(availableCashUsd.toFixed(2)), { shouldValidate: true })} type="button">
+                  Usar maximo disponible: {formatMoney(availableCashUsd, currency)}
+                </button>
+              )}
             </div>
             <div>
               <label aria-hidden="true" className="mb-1 block select-none text-center text-xs font-black uppercase text-slate-500 opacity-0">Accion</label>
-              <button className="min-h-11 w-full rounded-lg bg-emerald-700 px-5 py-2.5 font-bold text-white shadow-lg shadow-emerald-900/10 hover:bg-emerald-800 disabled:opacity-60" disabled={isSubmitting || (selectedType === 'sell' && (balance <= 0 || isSellingTooMuch))}>
+              <button className="min-h-11 w-full rounded-lg bg-emerald-700 px-5 py-2.5 font-bold text-white shadow-lg shadow-emerald-900/10 hover:bg-emerald-800 disabled:opacity-60" disabled={isSubmitting || (selectedType === 'sell' && (balance <= 0 || isSellingTooMuch)) || (selectedType === 'buy' && (availableCashUsd <= 0 || isBuyingTooMuch))}>
                 Registrar
               </button>
             </div>
@@ -138,6 +151,8 @@ export function DetailView({
           {errors.amountUsd && <p className="mt-2 text-center text-sm text-red-600">{errors.amountUsd.message}</p>}
           {isSellingTooMuch && !errors.amountUsd && <p className="mt-2 text-center text-sm font-semibold text-red-600">Solo tienes {formatMoney(maxSellUsd, currency)} disponible para vender.</p>}
           {selectedType === 'sell' && balance <= 0 && <p className="mt-2 text-center text-sm font-semibold text-red-600">No tienes saldo disponible de {coin.symbol.toUpperCase()} para vender.</p>}
+          {isBuyingTooMuch && !errors.amountUsd && <p className="mt-2 text-center text-sm font-semibold text-red-600">Solo tienes {formatMoney(availableCashUsd, currency)} disponible para comprar.</p>}
+          {selectedType === 'buy' && availableCashUsd <= 0 && <p className="mt-2 text-center text-sm font-semibold text-red-600">No tienes efectivo disponible para comprar.</p>}
         </form>
       )}
     </section>
