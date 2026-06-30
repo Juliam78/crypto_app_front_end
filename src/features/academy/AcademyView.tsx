@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { formatDate } from '../../lib/format'
+import { formatDate, formatMoney } from '../../lib/format'
 import { requestAssistant } from '../../lib/assistantBus'
-import type { Lesson, LessonKind, Recommendation } from '../../shared/types'
+import type { Coin, Lesson, LessonKind, Recommendation } from '../../shared/types'
 
 const recommendationStyles: Record<Recommendation, { label: string; className: string }> = {
   buy: { label: 'Comprar', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
@@ -34,11 +34,19 @@ function excerpt(body: string, max = 160): string {
   return `${trimmed.slice(0, max).trimEnd()}…`
 }
 
-function LessonCard({ lesson }: { lesson: Lesson }) {
+// Evita la redundancia "SEÑAL — Señal: ..." quitando el prefijo "Señal:" del título.
+function cleanSignalTitle(title: string): string {
+  const stripped = title.replace(/^\s*se[ñn]al\s*:?\s*/i, '').trim()
+  return stripped.length > 0 ? stripped : title
+}
+
+function LessonCard({ lesson, coins }: { lesson: Lesson; coins: Coin[] }) {
   const navigate = useNavigate()
   const [expanded, setExpanded] = useState(false)
   const isSignal = lesson.kind === 'signal'
   const needsToggle = lesson.body.trim().length > 160
+  const signalCoin = isSignal && lesson.coinId ? coins.find((c) => c.id === lesson.coinId) : undefined
+  const displayTitle = isSignal ? cleanSignalTitle(lesson.title) : lesson.title
 
   function handleApplySignal() {
     if (!lesson.coinId) return
@@ -59,7 +67,7 @@ function LessonCard({ lesson }: { lesson: Lesson }) {
           <span className="text-xs font-bold uppercase tracking-wide text-sky-700">
             {isSignal ? 'Señal' : 'Leccion'}
           </span>
-          <h3 className="text-lg font-black text-slate-950">{lesson.title}</h3>
+          <h3 className="text-lg font-black text-slate-950">{displayTitle}</h3>
         </div>
         {isSignal && lesson.recommendation && <RecommendationBadge recommendation={lesson.recommendation} />}
       </div>
@@ -67,7 +75,14 @@ function LessonCard({ lesson }: { lesson: Lesson }) {
       {isSignal && lesson.coinSymbol && (
         <p className="mt-1 text-sm font-semibold text-slate-600">
           Moneda: <span className="uppercase">{lesson.coinSymbol}</span>
+          {signalCoin && (
+            <span className="font-normal text-slate-500"> · precio actual {formatMoney(signalCoin.current_price, 'usd')}</span>
+          )}
         </p>
+      )}
+
+      {isSignal && (
+        <p className="mt-1 text-xs text-slate-400">Sugerencia educativa del equipo · no es asesoría financiera</p>
       )}
 
       <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-slate-700">
@@ -107,7 +122,7 @@ function LessonCard({ lesson }: { lesson: Lesson }) {
   )
 }
 
-export function AcademyView({ lessons }: { lessons: Lesson[] }) {
+export function AcademyView({ lessons, coins }: { lessons: Lesson[]; coins: Coin[] }) {
   const [kind, setKind] = useState<KindFilter>('all')
   const [search, setSearch] = useState('')
   const [coin, setCoin] = useState('all')
@@ -201,7 +216,7 @@ export function AcademyView({ lessons }: { lessons: Lesson[] }) {
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           {filtered.map((lesson) => (
-            <LessonCard key={lesson.id} lesson={lesson} />
+            <LessonCard key={lesson.id} lesson={lesson} coins={coins} />
           ))}
         </div>
       )}

@@ -478,7 +478,7 @@ function App() {
               path="/perfil"
               element={<ProfileView user={user} onSave={handleProfileUpdate} />}
             />
-            <Route path="/academia" element={<AcademyView lessons={lessons} />} />
+            <Route path="/academia" element={<AcademyView lessons={lessons} coins={coins} />} />
             <Route
               path="/staff/academia"
               element={
