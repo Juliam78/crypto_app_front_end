@@ -15,16 +15,12 @@ export function ProfileView({
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
 
-  // Vista previa local de la imagen elegida (no se sube a BD hasta pulsar Guardar).
+  // Solo revoca la URL de vista previa al cambiarla o al desmontar (sin setState en el efecto).
   useEffect(() => {
-    if (!avatarFile) {
-      setPreview(null)
-      return
+    return () => {
+      if (preview) URL.revokeObjectURL(preview)
     }
-    const url = URL.createObjectURL(avatarFile)
-    setPreview(url)
-    return () => URL.revokeObjectURL(url)
-  }, [avatarFile])
+  }, [preview])
 
   const {
     register,
@@ -48,7 +44,9 @@ export function ProfileView({
           if (!parsed.success) return
           const updated = await onSave(parsed.data, avatarFile)
           if (updated) {
-            setAvatarFile(null) // limpia el preview; el Avatar mostrará ya la imagen guardada
+            // limpia la seleccion; el Avatar mostrará ya la imagen guardada
+            setAvatarFile(null)
+            setPreview(null)
           }
           setMessage(updated ? 'Perfil actualizado correctamente' : 'No fue posible guardar el perfil')
         })}
@@ -68,7 +66,11 @@ export function ProfileView({
             <input
               accept="image/*"
               className="mt-1 block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-950 file:px-3 file:py-2 file:font-bold file:text-white"
-              onChange={(event) => setAvatarFile(event.target.files?.[0] ?? null)}
+              onChange={(event) => {
+                const file = event.target.files?.[0] ?? null
+                setAvatarFile(file)
+                setPreview(file ? URL.createObjectURL(file) : null)
+              }}
               type="file"
             />
             {preview && (
@@ -76,7 +78,10 @@ export function ProfileView({
                 Vista previa · aún sin guardar
                 <button
                   className="font-bold text-sky-700 underline hover:text-sky-900"
-                  onClick={() => setAvatarFile(null)}
+                  onClick={() => {
+                    setAvatarFile(null)
+                    setPreview(null)
+                  }}
                   type="button"
                 >
                   Cancelar
