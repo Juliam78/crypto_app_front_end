@@ -19,6 +19,8 @@ Ofrecer la experiencia de usuario completa de la simulación de trading:
 - **Detalle y trading** — gráfico de la moneda, formulario de compra/venta con validaciones y
   cantidad estimada.
 - **Historial** — movimientos del usuario con cálculo de PnL realizado.
+- **Mi cartera** — dinero (efectivo USD) disponible, valor del portafolio y saldo por moneda
+  (saldo inicial virtual de $10.000; las compras se limitan al efectivo disponible).
 - **Perfil** — edición de datos y carga de avatar.
 - **Administración** — gestión de usuarios/roles (`admin`/`employee`/`user`) y consulta de errores.
 - **Academia** — lecciones y señales de compra/venta; vista interactiva para el usuario
@@ -55,6 +57,7 @@ crypto_app_front_end/
 │   │   ├── auth/               # LoginScreen
 │   │   ├── market/             # MarketView, DetailView, TradingViewWidget
 │   │   ├── history/            # HistoryView
+│   │   ├── wallet/             # WalletView (efectivo disponible + saldo por moneda)
 │   │   ├── profile/            # ProfileView
 │   │   ├── admin/              # ErrorsView, UsersAdminView
 │   │   ├── academy/            # AcademyView (usuario, interactiva) y AcademyManageView (staff)
